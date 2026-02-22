@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Heart, Utensils, Trophy, User } from 'lucide-react';
+import { Home, Heart, Utensils, Clock, User } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'Início', icon: Home },
   { path: '/vaquinhas', label: 'Vaquinhas', icon: Heart },
   { path: '/racao', label: 'Ração', icon: Utensils },
-  { path: '/ranking', label: 'Ranking', icon: Trophy },
+  { path: '/historico', label: 'Histórico', icon: Clock },
   { path: '/perfil', label: 'Perfil', icon: User },
 ];
 
