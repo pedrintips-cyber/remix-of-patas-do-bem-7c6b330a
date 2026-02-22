@@ -1,36 +1,7 @@
-import { useEffect, useState } from 'react';
-
-const names = ['Marcela', 'Matheus', 'Ana', 'João', 'Beatriz', 'Carlos', 'Fernanda', 'Lucas', 'Juliana', 'Rafael', 'Camila', 'Gustavo', 'Larissa', 'Diego', 'Patrícia'];
-const amounts = [2, 5, 10, 15, 20, 25, 30, 50, 100];
+import { useNotificationToast } from '@/hooks/useFakeNotifications';
 
 const SocialProofNotifications = () => {
-  const [notification, setNotification] = useState<{ name: string; amount: number; visible: boolean } | null>(null);
-
-  useEffect(() => {
-    const showNotification = () => {
-      const name = names[Math.floor(Math.random() * names.length)];
-      const amount = amounts[Math.floor(Math.random() * amounts.length)];
-
-      // Only visual — does NOT save to database or state
-      setNotification({ name, amount, visible: true });
-
-      setTimeout(() => {
-        setNotification(prev => prev ? { ...prev, visible: false } : null);
-      }, 3000);
-
-      setTimeout(() => {
-        setNotification(null);
-      }, 3400);
-    };
-
-    const interval = setInterval(showNotification, 8000);
-    const initial = setTimeout(showNotification, 3000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(initial);
-    };
-  }, []);
+  const notification = useNotificationToast();
 
   if (!notification) return null;
 
