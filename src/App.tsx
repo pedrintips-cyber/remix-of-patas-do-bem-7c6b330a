@@ -15,7 +15,7 @@ import DonationsPage from "@/pages/DonationsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import AdminPage from "@/pages/AdminPage";
 import AuthPage from "@/pages/AuthPage";
-import RankingPage from "@/pages/RankingPage";
+import HistoricoPage from "@/pages/HistoricoPage";
 import AffiliatePage from "@/pages/AffiliatePage";
 import NotFound from "@/pages/NotFound";
 
@@ -39,7 +39,7 @@ const App = () => {
                   <Route path="/doacoes" element={<DonationsPage />} />
                   <Route path="/perfil" element={<ProfilePage />} />
                   <Route path="/auth" element={<AuthPage />} />
-                  <Route path="/ranking" element={<RankingPage />} />
+                  <Route path="/historico" element={<HistoricoPage />} />
                   <Route path="/afiliado" element={<AffiliatePage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="*" element={<NotFound />} />
