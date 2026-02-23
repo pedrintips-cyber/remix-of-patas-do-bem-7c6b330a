@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useApp } from '@/contexts/AppContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Menu, X, LayoutDashboard, Heart, Utensils, Settings, Plus, Edit2, Trash2, Save, Image, Lock, Users, Eye, UserCheck, Link2, DollarSign, Check, XCircle } from 'lucide-react';
+import { ArrowLeft, Menu, X, LayoutDashboard, Heart, Utensils, Settings, Plus, Edit2, Trash2, Save, Image, Lock, Users, Eye, UserCheck, Link2, DollarSign, Check, XCircle, TrendingUp, Clock, CheckCircle2, AlertTriangle, BarChart3, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
 import dog1 from '@/assets/dog1.jpg';
 
 type AdminTab = 'dashboard' | 'campaigns' | 'ration' | 'site' | 'customers' | 'affiliates';
@@ -139,14 +139,31 @@ const AdminDashboard = () => {
 const DashboardTab = () => {
   const { campaigns, donations, food } = useApp();
   const [pageViews, setPageViews] = useState<any[]>([]);
+  const [allDonations, setAllDonations] = useState<any[]>([]);
   const [viewsLoading, setViewsLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('page_views').select('*').order('created_at', { ascending: false }).limit(1000)
-      .then(({ data }) => { setPageViews(data || []); setViewsLoading(false); });
+    Promise.all([
+      supabase.from('page_views').select('*').order('created_at', { ascending: false }).limit(1000),
+      supabase.from('donations').select('*').order('created_at', { ascending: false }).limit(1000),
+    ]).then(([pvRes, donRes]) => {
+      setPageViews(pvRes.data || []);
+      setAllDonations(donRes.data || []);
+      setViewsLoading(false);
+    });
   }, []);
 
-  const totalRaised = donations.reduce((sum, d) => sum + d.amount, 0);
+  // Separate paid vs pending
+  const paidDonations = allDonations.filter(d => d.payment_status === 'paid');
+  const pendingDonations = allDonations.filter(d => d.payment_status === 'pending');
+
+  const totalPaid = paidDonations.reduce((sum, d) => sum + d.amount, 0);
+  const totalPending = pendingDonations.reduce((sum, d) => sum + d.amount, 0);
+  
+  // Unique visitors (deduplicated by page - already deduped by session in PageTracker)
+  const uniquePages = new Set(pageViews.map(v => v.page));
+  const totalViews = pageViews.length;
+
   const pieData = campaigns.filter(c => c.raised > 0).map(c => ({ name: c.name, value: c.raised }));
   const barData = campaigns.map(c => ({ name: c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name, arrecadado: c.raised, meta: c.goal, doadores: c.donors }));
   const topCampaign = [...campaigns].sort((a, b) => b.donors - a.donors)[0];
@@ -159,22 +176,81 @@ const DashboardTab = () => {
   });
   const viewsChartData = Object.entries(viewsByDay).sort().slice(-14).map(([day, count]) => ({ day: day.slice(5), visitas: count }));
 
-  const stats = [
-    { label: 'Total Arrecadado', value: `R$ ${totalRaised.toLocaleString('pt-BR')}` },
-    { label: 'Doações', value: donations.length.toString() },
-    { label: 'Vaquinhas', value: campaigns.length.toString() },
-    { label: 'Visualizações', value: pageViews.length.toString() },
-  ];
+  // Donations by day (paid only)
+  const donationsByDay: Record<string, number> = {};
+  paidDonations.forEach(d => {
+    const day = d.created_at?.split('T')[0];
+    if (day) donationsByDay[day] = (donationsByDay[day] || 0) + d.amount;
+  });
+  const donationsChartData = Object.entries(donationsByDay).sort().slice(-14).map(([day, total]) => ({ day: day.slice(5), valor: total }));
+
+  // Today stats
+  const today = new Date().toISOString().split('T')[0];
+  const todayPaid = paidDonations.filter(d => d.created_at?.startsWith(today));
+  const todayRevenue = todayPaid.reduce((sum, d) => sum + d.amount, 0);
+  const todayViews = pageViews.filter(v => v.created_at?.startsWith(today)).length;
+
+  // Conversion rate
+  const conversionRate = totalViews > 0 ? ((paidDonations.length / totalViews) * 100).toFixed(1) : '0';
 
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="space-y-4 animate-slide-up">
+      {/* Main stats */}
       <div className="grid grid-cols-2 gap-3">
-        {stats.map(s => (
-          <div key={s.label} className="rounded-2xl border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className="text-xl font-extrabold text-foreground">{s.value}</p>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <CheckCircle2 size={14} className="text-primary" />
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Vendas Pagas</p>
           </div>
-        ))}
+          <p className="text-xl font-extrabold text-foreground">R$ {totalPaid.toLocaleString('pt-BR')}</p>
+          <p className="text-[10px] text-primary font-bold">{paidDonations.length} doações</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock size={14} className="text-yellow-500" />
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Pendentes</p>
+          </div>
+          <p className="text-xl font-extrabold text-foreground">R$ {totalPending.toLocaleString('pt-BR')}</p>
+          <p className="text-[10px] text-yellow-500 font-bold">{pendingDonations.length} aguardando</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Eye size={14} className="text-blue-500" />
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Visitas</p>
+          </div>
+          <p className="text-xl font-extrabold text-foreground">{totalViews}</p>
+          <p className="text-[10px] text-blue-500 font-bold">{uniquePages.size} páginas</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp size={14} className="text-purple-500" />
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Conversão</p>
+          </div>
+          <p className="text-xl font-extrabold text-foreground">{conversionRate}%</p>
+          <p className="text-[10px] text-purple-500 font-bold">{campaigns.length} vaquinhas</p>
+        </div>
+      </div>
+
+      {/* Today highlight */}
+      <div className="rounded-2xl border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-accent/30 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Activity size={16} className="text-primary" />
+          <p className="text-sm font-bold text-foreground">Hoje</p>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <p className="text-[10px] text-muted-foreground">Receita</p>
+            <p className="text-base font-extrabold text-primary">R$ {todayRevenue.toLocaleString('pt-BR')}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground">Doações</p>
+            <p className="text-base font-extrabold text-foreground">{todayPaid.length}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground">Visitas</p>
+            <p className="text-base font-extrabold text-foreground">{todayViews}</p>
+          </div>
+        </div>
       </div>
 
       {topCampaign && (
@@ -185,84 +261,141 @@ const DashboardTab = () => {
         </div>
       )}
 
+      {/* Pending donations list */}
+      {pendingDonations.length > 0 && (
+        <div className="rounded-2xl border-2 border-yellow-400/30 bg-yellow-50/30 dark:bg-yellow-950/10 p-4">
+          <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+            <AlertTriangle size={16} className="text-yellow-500" /> Vendas Pendentes ({pendingDonations.length})
+          </h3>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {pendingDonations.slice(0, 10).map(d => (
+              <div key={d.id} className="flex items-center justify-between rounded-xl bg-card border border-border p-3">
+                <div>
+                  <p className="text-xs font-bold text-foreground">{d.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{new Date(d.created_at).toLocaleDateString('pt-BR')} · {d.campaign_name || 'Doação'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-yellow-600">R$ {d.amount}</p>
+                  <p className="text-[10px] text-yellow-500 font-semibold">Pendente</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Revenue chart (paid only) */}
+      {donationsChartData.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><BarChart3 size={16} className="text-primary" /> Receita Paga (14 dias)</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart data={donationsChartData}>
+              <defs>
+                <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(145, 63%, 42%)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(145, 63%, 42%)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(v: number) => `R$ ${v}`} />
+              <Area type="monotone" dataKey="valor" stroke="hsl(145, 63%, 42%)" strokeWidth={2} fill="url(#colorValor)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Views chart */}
       {viewsChartData.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Eye size={16} /> Visitas (últimos 14 dias)</h3>
+          <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Eye size={16} className="text-blue-500" /> Visitas (14 dias)</h3>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={viewsChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
               <XAxis dataKey="day" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
-              <Line type="monotone" dataKey="visitas" stroke="hsl(145, 63%, 42%)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="visitas" stroke="hsl(220, 70%, 55%)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       )}
 
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <h3 className="text-sm font-bold text-foreground mb-3">Distribuição por Campanha</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name.slice(0, 8)}… ${(percent * 100).toFixed(0)}%`}>
-              {pieData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-            </Pie>
-            <Tooltip formatter={(v: number) => `R$${v}`} />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
+      {pieData.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="text-sm font-bold text-foreground mb-3">Distribuição por Campanha</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name.slice(0, 8)}… ${(percent * 100).toFixed(0)}%`}>
+                {pieData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(v: number) => `R$${v}`} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <h3 className="text-sm font-bold text-foreground mb-3">Arrecadado vs Meta</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={barData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
-            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip formatter={(v: number) => `R$${v}`} />
-            <Bar dataKey="arrecadado" fill="hsl(145, 63%, 42%)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="meta" fill="hsl(220, 13%, 91%)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {barData.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="text-sm font-bold text-foreground mb-3">Arrecadado vs Meta</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={barData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(v: number) => `R$${v}`} />
+              <Bar dataKey="arrecadado" fill="hsl(145, 63%, 42%)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="meta" fill="hsl(220, 13%, 91%)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 };
 
 /* ─── CUSTOMERS TAB ─── */
 const CustomersTab = () => {
-  const { donations } = useApp();
+  const [allDonations, setAllDonations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('donations').select('*').eq('payment_status', 'paid').order('created_at', { ascending: false })
+      .then(({ data }) => { setAllDonations(data || []); setLoading(false); });
+  }, []);
 
   // Group donations by name+email to build customer list
   const customerMap = new Map<string, { name: string; email: string; phone: string; totalDonated: number; donationCount: number; lastDonation: string }>();
   
-  donations.forEach(d => {
+  allDonations.forEach(d => {
     const key = d.email || d.name;
     const existing = customerMap.get(key);
     if (existing) {
       existing.totalDonated += d.amount;
       existing.donationCount += 1;
-      if (d.date > existing.lastDonation) existing.lastDonation = d.date;
+      if (d.created_at > existing.lastDonation) existing.lastDonation = d.created_at;
     } else {
       customerMap.set(key, {
         name: d.name,
         email: d.email || '',
-        phone: '',
+        phone: d.phone || '',
         totalDonated: d.amount,
         donationCount: 1,
-        lastDonation: d.date,
+        lastDonation: d.created_at,
       });
     }
   });
 
   const customers = Array.from(customerMap.values()).sort((a, b) => b.totalDonated - a.totalDonated);
 
+  if (loading) return <p className="text-center text-muted-foreground py-8">Carregando...</p>;
+
   return (
     <div className="space-y-4 animate-slide-up">
       <div className="rounded-2xl border border-border bg-card p-4">
         <h2 className="text-lg font-bold text-foreground mb-1 flex items-center gap-2"><UserCheck size={18} /> Clientes ({customers.length})</h2>
-        <p className="text-xs text-muted-foreground mb-4">Todos os doadores que fizeram pagamento</p>
+        <p className="text-xs text-muted-foreground mb-4">Somente doadores com pagamento confirmado</p>
       </div>
 
       {customers.length === 0 ? (
@@ -317,7 +450,6 @@ const AffiliatesTab = () => {
     await supabase.from('withdrawal_requests').update({ status }).eq('id', id);
     
     if (status === 'rejected' && withdrawal) {
-      // Return balance to affiliate
       const aff = affiliates.find(a => a.id === withdrawal.affiliate_id);
       if (aff) {
         await supabase.from('affiliates').update({ balance: aff.balance + withdrawal.amount }).eq('id', aff.id);

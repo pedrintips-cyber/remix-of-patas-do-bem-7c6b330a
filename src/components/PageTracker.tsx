@@ -13,6 +13,12 @@ const PageTracker = () => {
       sessionStorage.setItem('affiliate_code', affiliateCode);
     }
 
+    // Deduplicate: only track once per path per session
+    const trackedKey = `tracked_${location.pathname}`;
+    const alreadyTracked = sessionStorage.getItem(trackedKey);
+    if (alreadyTracked) return;
+    sessionStorage.setItem(trackedKey, '1');
+
     const campaignMatch = location.pathname.match(/\/vaquinhas\/([0-9a-f-]+)/);
     const campaignId = campaignMatch ? campaignMatch[1] : null;
 
