@@ -264,6 +264,7 @@ export type Database = {
           id: string
           name: string
           order_bump: boolean
+          payment_status: string
           phone: string | null
           type: string
           user_id: string | null
@@ -278,6 +279,7 @@ export type Database = {
           id?: string
           name: string
           order_bump?: boolean
+          payment_status?: string
           phone?: string | null
           type?: string
           user_id?: string | null
@@ -292,6 +294,7 @@ export type Database = {
           id?: string
           name?: string
           order_bump?: boolean
+          payment_status?: string
           phone?: string | null
           type?: string
           user_id?: string | null

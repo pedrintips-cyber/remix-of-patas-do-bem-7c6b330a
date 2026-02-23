@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
         type: 'campaign',
         order_bump: false,
         affiliate_code: affiliateCode,
+        payment_status: 'paid',
       }).select('id').single();
 
       if (error) {
